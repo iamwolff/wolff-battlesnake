@@ -21,10 +21,10 @@ function info(): InfoResponse {
 
   return {
     apiversion: "1",
-    author: "",       // TODO: Your Battlesnake Username
-    color: "#888888", // TODO: Choose color
-    head: "default",  // TODO: Choose head
-    tail: "default",  // TODO: Choose tail
+    author: "awolff",       // TODO: Your Battlesnake Username
+    color: "#6699CC", // TODO: Choose color
+    head: "safe",  // TODO: Choose head
+    tail: "round-bum",  // TODO: Choose tail
   };
 }
 
@@ -65,11 +65,6 @@ function move(gameState: GameState): MoveResponse {
   let moveDown = { x: myHead.x, y: myHead.y - 1 } as Coord;
   let moveLeft = { x: myHead.x - 1, y: myHead.y } as Coord;
 
-  // if (myNeck.x === moveLeft.x) moveWeight.left -= 1000;
-  // if (myNeck.x === moveRight.x) moveWeight.right -= 1000;
-  // if (myNeck.y === moveUp.y) moveWeight.up -= 1000;
-  // if (myNeck.y === moveDown.y) moveWeight.down -= 1000;
-
   if (myHead.x === 0) moveWeight.left -= 1000;
   if (myHead.x === gameState.board.width - 1) moveWeight.right -= 1000;
   if (myHead.y === 0) moveWeight.down -= 1000;
@@ -108,32 +103,18 @@ function move(gameState: GameState): MoveResponse {
   });
 
   if (gameState.board.food.length > 0) {
-    console.log("looking for closest food");
     const closestFood = gameState.board.food
       .reduce((prev, curr) => {
         var prevDist = Math.abs(myHead.x - prev.x) + Math.abs(myHead.y - prev.y);
         var currDist = Math.abs(myHead.x - curr.x) + Math.abs(myHead.y - curr.y);
         return currDist < prevDist ? curr : prev;
       }, gameState.board.food[0]);
-    console.log(myHead);
-    console.log(closestFood);
 
     if (closestFood.x < myHead.x) moveWeight.left += 200;
     if (closestFood.x > myHead.x) moveWeight.right += 200;
     if (closestFood.y < myHead.y) moveWeight.down += 200;
     if (closestFood.y > myHead.y) moveWeight.up += 200;
   }
-
-  // try to move towards food
-  // gameState.board.food.forEach(f => {
-  //   if (f.x === moveUp.x && f.y === moveUp.y) moveWeight.up += 200;
-  //   if (f.x === moveRight.x && f.y === moveRight.y) moveWeight.right += 200;
-  //   if (f.x === moveDown.x && f.y === moveDown.y) moveWeight.down += 200;
-  //   if (f.x === moveLeft.x && f.y === moveLeft.y) moveWeight.left += 200;
-  // });
-
-
-  console.log(moveWeight);
 
   let bestMoveWeight = Object.keys(moveWeight).reduce((a, b) => moveWeight[a] > moveWeight[b] ? a : b);
   
