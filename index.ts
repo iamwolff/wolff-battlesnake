@@ -1,124 +1,75 @@
-// Welcome to
-// __________         __    __  .__                               __
-// \______   \_____ _/  |__/  |_|  |   ____   ______ ____ _____  |  | __ ____
-//  |    |  _/\__  \\   __\   __\  | _/ __ \ /  ___//    \\__  \ |  |/ // __ \
-//  |    |   \ / __ \|  |  |  | |  |_\  ___/ \___ \|   |  \/ __ \|    <\  ___/
-//  |________/(______/__|  |__| |____/\_____>______>___|__(______/__|__\\_____>
-//
-// This file can be a nice home for your Battlesnake logic and helper functions.
-//
-// To get you started we've included code to prevent your Battlesnake from moving backwards.
-// For more info see docs.battlesnake.com
-
 import runServer from './server';
-import { Coord, GameState, InfoResponse, MoveResponse } from './types';
+import { Coord, Game, GameState, InfoResponse, MoveResponse } from './types';
 
-// info is called when you create your Battlesnake on play.battlesnake.com
-// and controls your Battlesnake's appearance
-// TIP: If you open your Battlesnake URL in a browser you should see this data
 function info(): InfoResponse {
   console.log("INFO");
 
   return {
     apiversion: "1",
-    author: "awolff",       // TODO: Your Battlesnake Username
-    color: "#6699CC", // TODO: Choose color
-    head: "safe",  // TODO: Choose head
-    tail: "round-bum",  // TODO: Choose tail
+    author: "awolff",
+    color: "#6699CC",
+    head: "safe",
+    tail: "round-bum",
   };
 }
 
-// start is called when your Battlesnake begins a game
 function start(gameState: GameState): void {
   console.log("GAME START");
 }
 
-// end is called when your Battlesnake finishes a game
 function end(gameState: GameState): void {
   console.log("GAME OVER\n");
 }
 
-// move is called on every turn and returns your next move
-// Valid moves are "up", "down", "left", or "right"
-// See https://docs.battlesnake.com/api/example-move for available data
 function move(gameState: GameState): MoveResponse {
 
-  const UP = 0;
-  const RIGHT = 1;
-  const DOWN = 2;
-  const LEFT = 3;
+  const myHead = gameState.you.body[0];
 
-  //let moveWeight = [0,0,0,0];
-
-  let moveWeight: { [key: string]: number; } = {
-    up: 0,
-    right: 0,
-    down: 0,
-    left: 0,
+  const myMoves: { [key: string]: WeightedCoord } = {
+    up: { weight: 0, x: myHead.x, y: myHead.y + 1 },
+    right: { weight: 0, x: myHead.x + 1, y: myHead.y },
+    down: { weight: 0, x: myHead.x, y: myHead.y - 1 },
+    left: { weight: 0, x: myHead.x - 1, y: myHead.y },
   };
 
-  let myHead = gameState.you.body[0];
-  let myNeck = gameState.you.body[1];
+  const closestFood = gameState.board.food.length > 0 ?
+     gameState.board.food
+      .reduce((prev, curr) => {
+        var prevDist = distance(myHead, prev);
+        var currDist = distance(myHead, curr);
+        return currDist < prevDist ? curr : prev;
+      }, gameState.board.food[0]) : null;
 
-  let moveUp = { x: myHead.x, y: myHead.y + 1 } as Coord;
-  let moveRight = { x: myHead.x + 1, y: myHead.y } as Coord;
-  let moveDown = { x: myHead.x, y: myHead.y - 1 } as Coord;
-  let moveLeft = { x: myHead.x - 1, y: myHead.y } as Coord;
+  Object.keys(myMoves).forEach(moveName => {
 
-  if (myHead.x === 0) moveWeight.left -= 1000;
-  if (myHead.x === gameState.board.width - 1) moveWeight.right -= 1000;
-  if (myHead.y === 0) moveWeight.down -= 1000;
-  if (myHead.y === gameState.board.height - 1) moveWeight.up -= 1000;
+    const myMove = myMoves[moveName];
 
-  // don't move to edge of the board
-  if (moveUp.y === gameState.board.height - 1) moveWeight.up -= 100;
-  if (moveRight.x === gameState.board.width - 1) moveWeight.right -= 100;
-  if (moveDown.y === 0) moveWeight.down -= 100;
-  if (moveLeft.x === 0) moveWeight.left -= 100;
+    if (isOffBoard(myMove, gameState)) myMove.weight -= 1000;
 
-  gameState.board.snakes.forEach(snake => {
-  
-    if (snake.body.slice(0, -1).some(bodyCoord => bodyCoord.x === moveUp.x && bodyCoord.y === moveUp.y)) {
-      moveWeight.up -= 1000;
-    }
-    if (snake.body.slice(0, -1).some(bodyCoord => bodyCoord.x === moveRight.x && bodyCoord.y === moveRight.y)) {
-      moveWeight.right -= 1000;
-    }
-    if (snake.body.slice(0, -1).some(bodyCoord => bodyCoord.x === moveDown.x && bodyCoord.y === moveDown.y)) {
-      moveWeight.down -= 1000;
-    }
-    if (snake.body.slice(0, -1).some(bodyCoord => bodyCoord.x === moveLeft.x && bodyCoord.y === moveLeft.y)) {
-      moveWeight.left -= 1000;
-    }
+    if (isOnSnake(myMove, gameState)) myMove.weight -= 1000;
 
-    // todo dont go NEXT to the other snakes head
-    if (snake.id !== gameState.you.id && snake.body.length >= gameState.you.body.length) {
-      let otherHead = snake.body[0];
+    if (isNextToOtherSnakeHead(myMove, gameState)) myMove.weight -= 500;
 
-      if (Math.abs(moveUp.x - otherHead.x) + Math.abs(moveUp.y - otherHead.y) === 1) moveWeight.up -= 500;
-      if (Math.abs(moveRight.x - otherHead.x) + Math.abs(moveRight.y - otherHead.y) === 1) moveWeight.right -= 500;
-      if (Math.abs(moveDown.x - otherHead.x) + Math.abs(moveDown.y - otherHead.y) === 1) moveWeight.down -= 500;
-      if (Math.abs(moveLeft.x - otherHead.x) + Math.abs(moveLeft.y - otherHead.y) === 1) moveWeight.left -= 500;
-    }
+    // TODO: if next to another <smaller> snakehead, then ++++ move there!
+
+    //if (isDistanceFromEdge(myMove, gameState, 0)) myMove.weight -= 100;
+
+    //if (isDistanceFromEdge(myMove, gameState, 1)) myMove.weight -= 50;
+
+    if (floodFillCount(myMove, [], gameState).length < gameState.you.body.length) myMove.weight -= 800;
   });
 
-  if (gameState.board.food.length > 0) {
-    const closestFood = gameState.board.food
-      .reduce((prev, curr) => {
-        var prevDist = Math.abs(myHead.x - prev.x) + Math.abs(myHead.y - prev.y);
-        var currDist = Math.abs(myHead.x - curr.x) + Math.abs(myHead.y - curr.y);
-        return currDist < prevDist ? curr : prev;
-      }, gameState.board.food[0]);
-
-    if (closestFood.x < myHead.x) moveWeight.left += 200;
-    if (closestFood.x > myHead.x) moveWeight.right += 200;
-    if (closestFood.y < myHead.y) moveWeight.down += 200;
-    if (closestFood.y > myHead.y) moveWeight.up += 200;
+  let huntFoodThreshold = 100;
+  if (closestFood && gameState.you.health <= huntFoodThreshold) {
+    if (closestFood.x < myHead.x) myMoves.left.weight += 200;
+    if (closestFood.x > myHead.x) myMoves.right.weight += 200;
+    if (closestFood.y < myHead.y) myMoves.down.weight += 200;
+    if (closestFood.y > myHead.y) myMoves.up.weight += 200;
   }
 
-  let bestMoveWeight = Object.keys(moveWeight).reduce((a, b) => moveWeight[a] > moveWeight[b] ? a : b);
+  const bestMoveWeight = Object.keys(myMoves).reduce((a, b) => myMoves[a].weight > myMoves[b].weight ? a : b);
   
-  const bestMoves = Object.keys(moveWeight).filter(key => moveWeight[key] === moveWeight[bestMoveWeight]);
+  const bestMoves = Object.keys(myMoves).filter(key => myMoves[key].weight === myMoves[bestMoveWeight].weight);
 
   const nextMove = bestMoves[Math.floor(Math.random() * bestMoves.length)];
 
@@ -126,9 +77,64 @@ function move(gameState: GameState): MoveResponse {
   return { move: nextMove };
 }
 
+function isOffBoard(coord: Coord, gameState: GameState): boolean {
+  return coord.x < 0 || 
+        coord.y < 0 || 
+        coord.x > gameState.board.width - 1 ||
+        coord.y > gameState.board.height - 1;
+}
+
+function isDistanceFromEdge(coord: Coord, gameState: GameState, n: number): boolean {
+  return coord.x === n || 
+        coord.y === n || 
+        coord.x === gameState.board.width - 1 - n ||
+        coord.y === gameState.board.height - 1 - n;
+}
+
+function isOnSnake(coord: Coord, gameState: GameState): boolean {
+  return gameState.board.snakes.some(snake => {
+    return snake.body.slice(0, -1).some(body => body.x === coord.x && body.y === coord.y);
+  });
+}
+
+function isNextToOtherSnakeHead(coord: Coord, gameState: GameState): boolean {
+  return gameState.board.snakes
+    .filter(snake => snake.id !== gameState.you.id)
+    .filter(snake => snake.body.length >= gameState.you.body.length)
+    .some(snake => {
+      return distance(snake.body[0], coord) === 1;
+    });
+}
+
+function distance(a: Coord, b: Coord): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function floodFillCount(coord: Coord, coords: Coord[], gameState: GameState): Coord[] {
+  
+  if (coords.length > 30) return coords;
+
+  // TODO: add if another snake head near floodfill, then consider it blocked
+
+  if (!coords.some(c => c.x === coord.x && c.y === coord.y) && !isOffBoard(coord, gameState) && !isOnSnake(coord, gameState)) {
+    coords.push(coord);
+    floodFillCount({x: coord.x, y: coord.y + 1 }, coords, gameState);
+    floodFillCount({x: coord.x + 1, y: coord.y }, coords, gameState);
+    floodFillCount({x: coord.x, y: coord.y - 1 }, coords, gameState);
+    floodFillCount({x: coord.x - 1, y: coord.y }, coords, gameState);
+  }
+  
+  return coords;
+}
+
+
 runServer({
   info: info,
   start: start,
   move: move,
   end: end
 });
+
+interface WeightedCoord extends Coord {
+  weight: number;
+};
